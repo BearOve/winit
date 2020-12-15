@@ -565,6 +565,25 @@ impl<T: 'static> EventProcessor<T> {
                 let device_id = mkdid(device);
                 let keycode = xkev.keycode;
 
+                let written = if state == Pressed {
+                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
+                        wt.xconn.lookup_utf8(ic, xkev)
+                    } else {
+                        return;
+                    };
+
+                    for chr in written.chars() {
+                        let event = Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::ReceivedCharacter(chr),
+                        };
+                        callback(event);
+                    }
+                    Some(written)
+                } else {
+                    None
+                };
+                
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if keycode != 0 {
@@ -589,27 +608,14 @@ impl<T: 'static> EventProcessor<T> {
                                 scancode,
                                 virtual_keycode,
                                 modifiers,
+                                c: written,
                             },
                             is_synthetic: false,
                         },
                     });
                 }
 
-                if state == Pressed {
-                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                        wt.xconn.lookup_utf8(ic, xkev)
-                    } else {
-                        return;
-                    };
 
-                    for chr in written.chars() {
-                        let event = Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::ReceivedCharacter(chr),
-                        };
-                        callback(event);
-                    }
-                }
             }
 
             ffi::GenericEvent => {
@@ -1106,6 +1112,7 @@ impl<T: 'static> EventProcessor<T> {
                                 virtual_keycode,
                                 state,
                                 modifiers,
+                                c: None,
                             }),
                         });
 
@@ -1271,6 +1278,7 @@ impl<T: 'static> EventProcessor<T> {
                         state,
                         virtual_keycode,
                         modifiers,
+                        c: None,
                     },
                     is_synthetic: true,
                 },

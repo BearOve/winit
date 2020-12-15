@@ -373,7 +373,7 @@ impl Clone for WindowEvent<'static> {
                 is_synthetic,
             } => KeyboardInput {
                 device_id: *device_id,
-                input: *input,
+                input: input.clone(),
                 is_synthetic: *is_synthetic,
             },
 
@@ -597,7 +597,7 @@ pub enum DeviceEvent {
 }
 
 /// Describes a keyboard input event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyboardInput {
     /// Identifies the physical key pressed
@@ -621,6 +621,8 @@ pub struct KeyboardInput {
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
     #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
+
+    pub c: Option<String>,
 }
 
 /// Describes touch-screen input state.
