@@ -44,7 +44,7 @@ use crate::{
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        PlatformSpecificWindowBuilderAttributes, WindowId,
+        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
@@ -685,6 +685,20 @@ impl Window {
     pub fn theme(&self) -> Theme {
         self.window_state.lock().current_theme
     }
+
+    #[inline]
+    pub fn focus_window(&self) {
+        let window = self.window.clone();
+        let window_flags = self.window_state.lock().window_flags();
+
+        let is_visible = window_flags.contains(WindowFlags::VISIBLE);
+        let is_minimized = window_flags.contains(WindowFlags::MINIMIZED);
+        let is_foreground = window.0 == unsafe { winuser::GetForegroundWindow() };
+
+        if is_visible && !is_minimized && !is_foreground {
+            unsafe { force_window_active(window.0) };
+        }
+    }
 }
 
 impl Drop for Window {
@@ -733,12 +747,24 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
-    window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
-    window_flags.set(WindowFlags::ON_TASKBAR, true);
 
-    if pl_attribs.parent.is_some() && pl_attribs.menu.is_some() {
-        warn!("Setting a menu on windows that have a parent is unsupported");
-    }
+    let parent = match pl_attribs.parent {
+        Parent::ChildOf(parent) => {
+            window_flags.set(WindowFlags::CHILD, true);
+            if pl_attribs.menu.is_some() {
+                warn!("Setting a menu on a child window is unsupported");
+            }
+            Some(parent)
+        }
+        Parent::OwnedBy(parent) => {
+            window_flags.set(WindowFlags::POPUP, true);
+            Some(parent)
+        }
+        Parent::None => {
+            window_flags.set(WindowFlags::ON_TASKBAR, true);
+            None
+        }
+    };
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
@@ -752,7 +778,7 @@ unsafe fn init<T: 'static>(
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
-            pl_attribs.parent.unwrap_or(ptr::null_mut()),
+            parent.unwrap_or(ptr::null_mut()),
             pl_attribs.menu.unwrap_or(ptr::null_mut()),
             libloaderapi::GetModuleHandleW(ptr::null()),
             ptr::null_mut(),
