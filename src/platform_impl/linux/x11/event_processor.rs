@@ -613,9 +613,25 @@ impl<T: 'static> EventProcessor<T> {
                             is_synthetic: false,
                         },
                     });
+                } else {
+                    let modifiers = self.device_mod_state.modifiers();
+
+                    #[allow(deprecated)]
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::KeyboardInput {
+                            device_id,
+                            input: KeyboardInput {
+                                state,
+                                scancode: 0,
+                                virtual_keycode: None,
+                                modifiers,
+                                c: written,
+                            },
+                            is_synthetic: false,
+                        },
+                    });
                 }
-
-
             }
 
             ffi::GenericEvent => {
